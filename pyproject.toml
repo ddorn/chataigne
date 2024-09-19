@@ -1,0 +1,35 @@
+[tool.poetry]
+name = "chataigne"
+version = "0.1.0"
+description = "A powerful chat interface with tools."
+authors = ["ddorn <diego.dorn@free.fr>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+streamlit = "^1.37.1"
+streamlit-pills = "^0.3.0"
+openai = "^1.41.1"
+anthropic = "^0.34.1"
+tiktoken = "^0.6.0"
+requests = "^2.31.0"
+pillow = "^10.2.0"
+plotly = "^5.22.0"
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.4"
+pre-commit = "^3.7.0"
+pytest = "^8.3.3"
+prompt-toolkit = "^3.0.41"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.pyright]
+include = ["chataigne", "demos", "tests"]
+# strict = ["chataigne", "demos", "tests"]
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
