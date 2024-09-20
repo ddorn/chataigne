@@ -6,7 +6,7 @@ from openai.types.chat import (
 )
 
 from .tool import Tool
-from .messages import MessageHistory, MessagePart, TextMessage, ToolRequestMessage
+from .messages import MessageHistory, TextMessage, ToolRequestMessage, AnyMessagePart
 
 
 class LLM:
@@ -20,7 +20,7 @@ class LLM:
 
     async def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
-    ) -> list[MessagePart]:
+    ) -> list[AnyMessagePart]:
         raise NotImplementedError()
 
 
@@ -31,7 +31,7 @@ class OpenAILLM(LLM):
 
     async def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
-    ) -> list[MessagePart]:
+    ) -> list[AnyMessagePart]:
         answer = (
             (
                 await self.client.chat.completions.create(
@@ -77,7 +77,7 @@ class AnthropicLLM(LLM):
 
     async def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
-    ) -> list[MessagePart]:
+    ) -> list[AnyMessagePart]:
 
         answer = await self.client.messages.create(
             system=system,

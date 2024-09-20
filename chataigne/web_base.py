@@ -24,21 +24,27 @@ class Actions(StrEnum):
 
 class ChatBackend:
     def __init__(self, messages: MessageHistory):
-        self.all_tools: list[Tool] = []
+        self.tools: dict[str, Tool] = {}
         self.messages = messages
         self.model = OpenAILLM("GPT 4o Mini", "gpt-4o-mini")
 
-    def tool[T: Callable](self, tool: T) -> T:
+    def tool[T: Callable](self, tool_function: T) -> T:
         """Decorator to register a tool in the chat."""
-        self.all_tools.append(Tool.from_function(tool))
-        return tool
+        tool = Tool.from_function(tool_function)
+        if tool.name in self.tools:
+            raise ValueError(f"A tool named {tool} is already registered.")
+        else:
+            self.tools[tool.name] = tool
+        return tool_function
 
     def add_user_input(self, text: str):
         new_part = TextMessage(text=text, is_user=True)
         self.messages.append(new_part)
 
     async def generate_answer(self):
-        new_parts = await self.model("Be straightforward.", self.messages, self.all_tools)
+        new_parts = await self.model(
+            "Be straightforward.", self.messages, list(self.tools.values())
+        )
         self.messages.extend(new_parts)
 
     def actions_for(self, part_index: int) -> list[Actions | str]:
@@ -71,22 +77,19 @@ class ChatBackend:
     def tool_output_ids(self):
         return {m.id for m in self.messages if isinstance(m, ToolOutputMessage)}
 
-    def tool_from_name(self, name: str) -> Tool:
-        return next(t for t in self.all_tools if t.name == name)
-
-    async def call_action(self, action: Actions, index: int):
+    async def call_action(self, action: Actions | str, index: int):
         part = self.messages[index]
 
         if action == Actions.ALLOW_AND_RUN:
             assert isinstance(part, ToolRequestMessage)
-            tool = self.tool_from_name(part.name)
+            tool = self.tools[part.name]
 
             out = await tool.run(**part.parameters)
             self.messages.append(ToolOutputMessage(id=part.id, name=tool.name, content=out))
 
         elif action == Actions.DENY:
             assert isinstance(part, ToolRequestMessage)
-            tool = self.tool_from_name(part.name)
+            tool = self.tools[part.name]
             self.messages.append(
                 ToolOutputMessage(
                     id=part.id, name=tool.name, content="Tool call denied by user", canceled=True
@@ -132,7 +135,7 @@ class WebChat(ChatBackend):
         st.button("Clear chat", on_click=lambda: st.session_state.pop("messages"))
 
         with st.expander("Tools"):
-            for tool in self.all_tools:
+            for tool in self.tools.values():
                 st.write(f"### {tool.name}")
                 st.write(tool.description)
                 st.write(f"Parameters: {tool.parameters}")
