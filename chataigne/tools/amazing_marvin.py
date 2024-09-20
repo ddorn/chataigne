@@ -14,7 +14,12 @@ def add_task(title: str):
     - Use +3d to schedule it in 3 days (or +2w, +31.12.2023). Use +0d to schedule it today.
     - Use ~5m to set the estimated time.
     - Use HH:MM to set the time of day.
-    Note that none of them are required, but add as much information that makes sense.
+
+    Note that none of them are required, but add as many as possible.
+    In particular, try to schedule tasks when possible and estimate it's duration when possible.
+
+    Example:
+        14:00 Take a nap ~20m +0d #Selfcare
     """
 
     url = BASE + "addTask"
