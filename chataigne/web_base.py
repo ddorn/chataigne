@@ -4,6 +4,7 @@ import json
 from typing import Callable
 
 import streamlit as st
+from streamlit_pills import pills as st_pills
 
 
 from .horizontal_layout import st_horizontal
@@ -14,7 +15,7 @@ from .messages import (
     ToolRequestMessage,
     ToolOutputMessage,
 )
-from .llms import OpenAILLM
+from .llms import OpenAILLM, LLM, AnthropicLLM
 from .tool import Tool
 
 
@@ -25,10 +26,10 @@ class Actions(StrEnum):
 
 
 class ChatBackend:
-    def __init__(self, messages: MessageHistory):
+    def __init__(self, messages: MessageHistory, model: LLM):
         self.tools: dict[str, Tool] = {}
         self.messages = messages
-        self.model = OpenAILLM("GPT 4o Mini", "gpt-4o-mini")
+        self.model = model
 
     def tool[T: Callable](self, tool_function: T) -> T:
         """Decorator to register a tool in the chat."""
@@ -118,10 +119,17 @@ class ChatBackend:
 
 
 class WebChat(ChatBackend):
-    def __init__(self):
-        messages = st.session_state.setdefault("messages", MessageHistory([]))
+    def __init__(self, models: list[LLM] = []):
+        if not models:
+            models = [
+                OpenAILLM("GPT 4o", "gpt-4o"),
+                OpenAILLM("GPT 4o Mini", "gpt-4o-mini"),
+                AnthropicLLM("Claude 3.5 Sonnet", "claude-3-5-sonnet-20240620"),
+            ]
+        self.available_models = models
 
-        super().__init__(messages)
+        messages = st.session_state.setdefault("messages", MessageHistory([]))
+        super().__init__(messages, models[0])
 
         self.tool_requests_containers: dict = {}  # {part.id: st.container}
 
@@ -157,6 +165,13 @@ class WebChat(ChatBackend):
 
     async def main(self):
         st.title("Chataigne 🌰")
+        if len(self.available_models) > 1:
+            models_by_name = {model.nice_name: model for model in self.available_models}
+            model_name = st_pills(
+                "Model", list(models_by_name.keys()), label_visibility="collapsed"
+            )
+            self.model = models_by_name[model_name]
+
         self.show_sidebar()
 
         # st.markdown(
