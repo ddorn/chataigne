@@ -234,8 +234,7 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
 
         def is_user_message(x):
             return (
-                isinstance(x, TextMessage)
-                and x.is_user
+                (isinstance(x, TextMessage) and x.is_user)
                 or isinstance(x, ImageMessage)
                 or isinstance(x, ToolOutputMessage)
             )
@@ -279,7 +278,7 @@ def merge[T: (dict, list)](a: T, b: T) -> T:
             if key in new and isinstance(new[key], (dict, list)):
                 new[key] = merge(new[key], b[key])
             elif key in new:
-                assert new[key] == b[key]
+                assert new[key] == b[key], f"Conflict on key {key}: {new[key]} != {b[key]}"
             else:
                 new[key] = b[key]
         return new
