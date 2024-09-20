@@ -1,4 +1,5 @@
 import json
+import time
 import anthropic
 import openai
 from openai.types.chat import (
@@ -18,7 +19,7 @@ class LLM:
         self.nice_name = nice_name
         self.model_name = model_name
 
-    async def __call__(
+    def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
     ) -> list[AnyMessagePart]:
         raise NotImplementedError()
@@ -27,14 +28,14 @@ class LLM:
 class OpenAILLM(LLM):
     def __init__(self, nice_name: str, model_name: str):
         super().__init__(nice_name, model_name)
-        self.client = openai.AsyncOpenAI()
+        self.client = openai.OpenAI()
 
-    async def __call__(
+    def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
     ) -> list[AnyMessagePart]:
         answer = (
             (
-                await self.client.chat.completions.create(
+                self.client.chat.completions.create(
                     messages=[
                         ChatCompletionSystemMessageParam(content=system, role="system"),
                         *messages.to_openai(),
@@ -73,13 +74,13 @@ class OpenAILLM(LLM):
 class AnthropicLLM(LLM):
     def __init__(self, nice_name: str, model_name: str):
         super().__init__(nice_name, model_name)
-        self.client = anthropic.AsyncAnthropic()
+        self.client = anthropic.Anthropic()
 
-    async def __call__(
+    def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
     ) -> list[AnyMessagePart]:
 
-        answer = await self.client.messages.create(
+        answer = self.client.messages.create(
             system=system,
             messages=messages.to_anthropic(),
             model=self.model_name,
@@ -103,6 +104,21 @@ class AnthropicLLM(LLM):
                 )
 
         return new_messages
+
+
+class EchoLLM(LLM):
+    def __init__(self):
+        super().__init__("Z Echo", "echo")
+
+    def __call__(
+        self, system: str, messages: MessageHistory, tools: list[Tool]
+    ) -> list[AnyMessagePart]:
+        last_message = messages[-1]
+        time.sleep(1)
+        if isinstance(last_message, TextMessage):
+            return [TextMessage(text=last_message.text, is_user=False)]
+        else:
+            return [TextMessage(text=str(last_message), is_user=False)]
 
 
 MODELS = [

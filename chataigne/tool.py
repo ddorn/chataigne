@@ -40,7 +40,7 @@ class Tool(BaseModel):
             "input_schema": self.shema(),
         }
 
-    async def run(self, **kwargs) -> str:
+    def run(self, **kwargs) -> str:
         raise NotImplementedError()
 
     @classmethod
@@ -53,7 +53,7 @@ class Tool(BaseModel):
         schema = FArgs.model_json_schema()
 
         class CustomTool(cls):
-            async def run(self, **kwargs):
+            def run(self, **kwargs):
                 return str(func(**kwargs))
 
         return CustomTool(

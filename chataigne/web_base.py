@@ -1,4 +1,3 @@
-import asyncio
 from enum import StrEnum
 import json
 from typing import Callable
@@ -9,13 +8,14 @@ from streamlit_pills import pills as st_pills
 
 from .horizontal_layout import st_horizontal
 from .messages import (
+    AnyMessagePart,
     MessageHistory,
     TextMessage,
     ImageMessage,
     ToolRequestMessage,
     ToolOutputMessage,
 )
-from .llms import OpenAILLM, LLM, AnthropicLLM
+from .llms import EchoLLM, OpenAILLM, LLM, AnthropicLLM
 from .tool import Tool
 
 
@@ -47,9 +47,11 @@ class ChatBackend:
         new_part = TextMessage(text=text, is_user=True)
         self.messages.append(new_part)
 
-    async def generate_answer(self):
-        new_parts = await self.model("Be straightforward.", self.messages, self.enabled_tools())
+    def generate_answer(self) -> list[AnyMessagePart]:
+        """Generates a new answer from the model and appends it to the messages."""
+        new_parts = self.model("Be straightforward.", self.messages, self.enabled_tools())
         self.messages.extend(new_parts)
+        return new_parts
 
     def actions_for(self, part_index: int) -> list[Actions | str]:
         part = self.messages[part_index]
@@ -81,14 +83,14 @@ class ChatBackend:
     def tool_output_ids(self):
         return {m.id for m in self.messages if isinstance(m, ToolOutputMessage)}
 
-    async def call_action(self, action: Actions | str, index: int):
+    def call_action(self, action: Actions | str, index: int):
         part = self.messages[index]
 
         if action == Actions.ALLOW_AND_RUN:
             assert isinstance(part, ToolRequestMessage)
             tool = self.tools[part.name]
 
-            out = await tool.run(**part.parameters)
+            out = tool.run(**part.parameters)
             self.messages.append(ToolOutputMessage(id=part.id, name=tool.name, content=out))
 
         elif action == Actions.DENY:
@@ -125,6 +127,7 @@ class WebChat(ChatBackend):
                 OpenAILLM("GPT 4o", "gpt-4o"),
                 OpenAILLM("GPT 4o Mini", "gpt-4o-mini"),
                 AnthropicLLM("Claude 3.5 Sonnet", "claude-3-5-sonnet-20240620"),
+                EchoLLM(),
             ]
         self.available_models = models
 
@@ -149,27 +152,43 @@ class WebChat(ChatBackend):
             st.header("Options")
             st.button("Clear chat", on_click=lambda: st.session_state.pop("messages"))
 
-            if not st.checkbox("Show debug options"):
-                return
-
-            with st.expander("Tools"):
+            if st.toggle("Show tools"):
                 for tool in self.tools.values():
                     st.write(f"### {tool.name}")
                     st.write(tool.description)
-                    st.write(f"Parameters: {tool.parameters}")
-                    st.write(f"Required: {tool.required}")
                     st.code(json.dumps(tool.to_openai(), indent=2), language="json")
 
-            with st.expander("Message history as JSON"):
-                st.code(json.dumps(self.messages.to_openai(), indent=2), language="json")
+            if st.button("Show messages history"):
 
-    async def main(self):
+                @st.dialog("Messages history", width="large")
+                def show_history():
+                    kind = st_pills("Kind", ["Raw", "For OpenAI", "For Anthropic"])
+
+                    if kind == "Raw":
+                        st.write(self.messages.model_dump())
+                    elif kind == "For OpenAI":
+                        st.write(self.messages.to_openai())
+                    elif kind == "For Anthropic":
+                        st.write(self.messages.to_anthropic())
+                    else:
+                        raise ValueError(kind)
+
+                show_history()
+
+    def main(self):
         st.title("Chataigne 🌰")
         if len(self.available_models) > 1:
             models_by_name = {model.nice_name: model for model in self.available_models}
             model_name = st_pills(
-                "Model", list(models_by_name.keys()), label_visibility="collapsed"
+                "Model selection",
+                sorted(models_by_name.keys()),
+                label_visibility="collapsed",
+                index=0,
+                key="model_pill",
             )
+            # model_name = st.radio(
+            #     "Model selection", sorted(models_by_name.keys()), index=0, key="model_radio",
+            #     horizontal=True)
             self.model = models_by_name[model_name]
 
         self.show_sidebar()
@@ -185,55 +204,59 @@ class WebChat(ChatBackend):
         #     """,
         #     unsafe_allow_html=True,
         # )
-
-        for i, message in enumerate(self.messages):
-
-            # We put tool outputs next to its tool.
-            if isinstance(message, ToolOutputMessage):
-                with self.tool_requests_containers[message.id]:
-                    st.write(f"➡ {message.content}")
-                continue
-
-            # Others have their own containers.
-            role = message.to_openai()["role"]
-            container = st.chat_message(name=role)
-            with container:
-                if isinstance(message, TextMessage):
-                    st.write(message.text)
-                elif isinstance(message, ImageMessage):
-                    st.warning("Image messages are not supported yet.")
-                elif isinstance(message, ToolRequestMessage):
-                    self.tool_requests_containers[message.id] = container
-                    s = f"Request to use **{message.name}**\n"
-                    for key, value in message.parameters.items():
-                        s += f"{key}: {self.to_inline_or_code_block(value)}\n"
-                    st.write(s)
-                else:
-                    st.warning(f"Unsupported message type: {type(message)}")
-
-                actions = self.actions_for(i)
-                if actions:
-                    with st_horizontal():
-                        for action in actions:
-                            if st.button(action, key=f"action_{action}_{i}"):
-                                await self.call_action(action, i)
-                                st.rerun()
-
         # If the last message is a user message, we need to ask for a new one.
-        if self.needs_generation():
-            await self.generate_answer()
-            st.rerun()
+
+        for i in range(len(self.messages)):
+            self.show_message(i)
 
         some_tool_was_not_run = any(
             isinstance(m, ToolRequestMessage) and m.id not in self.tool_output_ids()
             for m in self.messages
         )
-        user_message = st.chat_input(disabled=some_tool_was_not_run)
-        if user_message:
-            self.add_user_input(user_message)
-            st.rerun()
 
-        return
+        st.chat_input(
+            disabled=some_tool_was_not_run,
+            key="chat_input",
+            on_submit=lambda: self.add_user_input(st.session_state.chat_input),
+        )
+
+        if self.needs_generation():
+            new = self.generate_answer()
+            for i in range(len(self.messages) - len(new), len(self.messages)):
+                self.show_message(i)
+
+    def show_message(self, index: int):
+        message = self.messages[index]
+        # We put tool outputs next to its tool.
+        if isinstance(message, ToolOutputMessage):
+            with self.tool_requests_containers[message.id]:
+                st.write(f"➡ {message.content}")
+            return
+
+        # Others have their own containers.
+        role = message.to_openai()["role"]
+        container = st.chat_message(name=role)
+        with container:
+            if isinstance(message, TextMessage):
+                st.write(message.text)
+            elif isinstance(message, ImageMessage):
+                st.warning("Image messages are not supported yet.")
+            elif isinstance(message, ToolRequestMessage):
+                self.tool_requests_containers[message.id] = container
+                s = f"Request to use **{message.name}**\n"
+                for key, value in message.parameters.items():
+                    s += f"{key}: {self.to_inline_or_code_block(value)}\n"
+                st.write(s)
+            else:
+                st.warning(f"Unsupported message type: {type(message)}")
+
+            actions = self.actions_for(index)
+            if actions:
+                with st_horizontal():
+                    for action in actions:
+                        if st.button(action, key=f"action_{action}_{index}"):
+                            self.call_action(action, index)
+                            st.rerun()
 
     def to_inline_or_code_block(self, value):
         if "\n" in str(value):
@@ -241,5 +264,13 @@ class WebChat(ChatBackend):
         else:
             return f"`{value}`"
 
+    def show_in_modal(self, **kwargs):
+
+        @st.dialog("Debug", width="large")
+        def _():
+            for key, value in kwargs.items():
+                st.write(f"### {key}")
+                st.write(value)
+
     def run(self):
-        asyncio.run(self.main())
+        self.main()
