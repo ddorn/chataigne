@@ -1,0 +1,18 @@
+[data-testid=stChatMessage] {
+    /* The default has no right padding for assitant messages */
+    padding: 1rem;
+}
+
+/*
+[data-testid=stChatMessage]:has([data-testid=stChatMessageAvatarAssistant]) {
+
+}
+
+[data-testid=stChatMessage]:has([data-testid=stChatMessageAvatarUser]) {
+    /* Align right and reverse */
+    /* flex-direction: row-reverse; */
+    /* text-align: right; */
+    /* max-width: fit-content; */
+    /*
+}
+*/

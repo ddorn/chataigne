@@ -1,5 +1,6 @@
 from enum import StrEnum
 import json
+from pathlib import Path
 from typing import Callable
 
 import streamlit as st
@@ -18,11 +19,14 @@ from .messages import (
 from .llms import EchoLLM, OpenAILLM, LLM, AnthropicLLM
 from .tool import Tool
 
+CSS_FILE = Path(__file__).parent / "styles.css"
+
 
 class Actions(StrEnum):
     ALLOW_AND_RUN = "✅ Allow and Run"
     DENY = "❌ Deny"
     EDIT = "✏️ Edit"
+    DELETE = "🗑️"
 
 
 class ChatBackend:
@@ -57,9 +61,9 @@ class ChatBackend:
         part = self.messages[part_index]
 
         if isinstance(part, ToolRequestMessage) and self.needs_processing(part_index):
-            return [Actions.ALLOW_AND_RUN, Actions.DENY]  # , Actions.EDIT]
+            return [Actions.ALLOW_AND_RUN, Actions.DENY, Actions.DELETE]  # , Actions.EDIT]
         else:
-            return []
+            return [Actions.DELETE]
             return [Actions.EDIT]
 
     def needs_processing(self, index: int) -> bool:
@@ -102,6 +106,8 @@ class ChatBackend:
                 )
             )
 
+        elif action == Actions.DELETE:
+            self.messages.pop(index)
         # elif action == Actions.EDIT:
 
         else:
@@ -132,6 +138,8 @@ class WebChat(ChatBackend):
         self.available_models = models
 
         messages = st.session_state.setdefault("messages", MessageHistory([]))
+        messages = MessageHistory(messages.model_dump())
+        st.session_state.messages = messages
         super().__init__(messages, models[0])
 
         self.tool_requests_containers: dict = {}  # {part.id: st.container}
@@ -176,7 +184,9 @@ class WebChat(ChatBackend):
                 show_history()
 
     def main(self):
+        self.inject_css()
         st.title("Chataigne 🌰")
+
         if len(self.available_models) > 1:
             models_by_name = {model.nice_name: model for model in self.available_models}
             model_name = st_pills(
@@ -192,19 +202,6 @@ class WebChat(ChatBackend):
             self.model = models_by_name[model_name]
 
         self.show_sidebar()
-
-        # st.markdown(
-        #     """
-        #     <style>
-        #         [data-testid=stChatMessage] {
-        #             padding: 0.5rem;
-        #             margin: -0.5rem 0;
-        #         }
-        #     </style>
-        #     """,
-        #     unsafe_allow_html=True,
-        # )
-        # If the last message is a user message, we need to ask for a new one.
 
         for i in range(len(self.messages)):
             self.show_message(i)
@@ -231,6 +228,7 @@ class WebChat(ChatBackend):
         if isinstance(message, ToolOutputMessage):
             with self.tool_requests_containers[message.id]:
                 st.write(f"➡ {message.content}")
+                self.show_actions_for(index)
             return
 
         # Others have their own containers.
@@ -250,13 +248,22 @@ class WebChat(ChatBackend):
             else:
                 st.warning(f"Unsupported message type: {type(message)}")
 
-            actions = self.actions_for(index)
-            if actions:
-                with st_horizontal():
-                    for action in actions:
-                        if st.button(action, key=f"action_{action}_{index}"):
-                            self.call_action(action, index)
-                            st.rerun()
+            self.show_actions_for(index)
+
+    def show_actions_for(self, index: int):
+        actions = self.actions_for(index)
+        if actions:
+            with st_horizontal():
+                for action in actions:
+                    st.button(
+                        action,
+                        key=f"action_{action}_{index}",
+                        on_click=self.call_action,
+                        args=(action, index),
+                    )
+
+    def inject_css(self):
+        st.markdown(f"<style>{CSS_FILE.read_text()}</style>", unsafe_allow_html=True)
 
     def to_inline_or_code_block(self, value):
         if "\n" in str(value):

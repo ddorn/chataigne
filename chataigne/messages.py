@@ -186,6 +186,9 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
     def remove(self, other: AnyMessagePart):
         self.root.remove(other)
 
+    def pop(self, index: int):
+        return self.root.pop(index)
+
     def to_openai(self) -> list[ChatCompletionMessageParam]:
         formated = []
         # For openai, we need to merge:
@@ -278,7 +281,9 @@ def merge[T: (dict, list)](a: T, b: T) -> T:
             if key in new and isinstance(new[key], (dict, list)):
                 new[key] = merge(new[key], b[key])
             elif key in new:
-                assert new[key] == b[key], f"Conflict on key {key}: {new[key]} != {b[key]}"
+                assert (
+                    new[key] == b[key]
+                ), f"Conflict on key {key}: {new[key]} != {b[key]}.\n{a}\n{b}"
             else:
                 new[key] = b[key]
         return new
