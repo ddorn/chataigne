@@ -5,7 +5,7 @@ BASE = "https://serv.amazingmarvin.com/api/"
 TOKEN = os.getenv("AMAZING_MARVIN_TOKEN")
 
 
-def add_task(title: str):
+def add_marvin_task(title: str):
     """Add a task to the user's Amazing Marvin account.
 
     Amazing Marvin's markup is availaible to specify the task's properties.
@@ -34,4 +34,4 @@ def add_task(title: str):
 
 
 if __name__ == "__main__":
-    add_task("Buy milk #groceries +0d ~5m 18:00")
+    add_marvin_task("Buy milk #groceries +0d ~5m 18:00")
