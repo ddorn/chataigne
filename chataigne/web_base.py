@@ -25,7 +25,7 @@ CSS_FILE = Path(__file__).parent / "styles.css"
 class Actions(StrEnum):
     ALLOW_AND_RUN = "✅ Allow and Run"
     DENY = "❌ Deny"
-    EDIT = "✏️ Edit"
+    EDIT = "✏️"
     DELETE = "🗑️"
 
 
@@ -61,10 +61,11 @@ class ChatBackend:
         part = self.messages[part_index]
 
         if isinstance(part, ToolRequestMessage) and self.needs_processing(part_index):
-            return [Actions.ALLOW_AND_RUN, Actions.DENY, Actions.DELETE]  # , Actions.EDIT]
+            return [Actions.ALLOW_AND_RUN, Actions.DENY, Actions.DELETE, Actions.EDIT]
+        if isinstance(part, TextMessage):
+            return [Actions.DELETE, Actions.EDIT]
         else:
             return [Actions.DELETE]
-            return [Actions.EDIT]
 
     def needs_processing(self, index: int) -> bool:
         part = self.messages[index]
@@ -108,8 +109,7 @@ class ChatBackend:
 
         elif action == Actions.DELETE:
             self.messages.pop(index)
-        # elif action == Actions.EDIT:
-
+        
         else:
             raise NotImplementedError(action)
 
@@ -138,8 +138,6 @@ class WebChat(ChatBackend):
         self.available_models = models
 
         messages = st.session_state.setdefault("messages", MessageHistory([]))
-        messages = MessageHistory(messages.model_dump())
-        st.session_state.messages = messages
         super().__init__(messages, models[0])
 
         self.tool_requests_containers: dict = {}  # {part.id: st.container}
@@ -222,6 +220,22 @@ class WebChat(ChatBackend):
             for i in range(len(self.messages) - len(new), len(self.messages)):
                 self.show_message(i)
 
+    def call_action(self, action: Actions | str, index: int):
+        if action == Actions.EDIT:
+            message_to_be_edited = self.messages[index]
+            assert isinstance(message_to_be_edited, TextMessage)
+            @st.dialog("Edit Message")
+            def edit_msg():
+                with st.form(key="edit_message", border=False):
+                    edited_message = st.text_area("edit_message", value=message_to_be_edited.text, label_visibility="collapsed")
+                    with st_horizontal():
+                        if st.form_submit_button("Save changes"):
+                            self.messages[index].text = edited_message
+                            st.rerun()
+            edit_msg()
+        else:
+            return super().call_action(action, index)
+    
     def show_message(self, index: int):
         message = self.messages[index]
         # We put tool outputs next to its tool.
