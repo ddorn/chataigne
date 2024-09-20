@@ -6,11 +6,12 @@ from anthropic.types import ToolParam
 from pydantic import BaseModel, create_model
 
 
-class Tool:
+class Tool(BaseModel):
     name: str
     description: str
     parameters: dict[str, Any]
     required: list[str]
+    enabled: bool = True
 
     def shema(self) -> dict[str, Any]:
         return {
@@ -39,9 +40,6 @@ class Tool:
             "input_schema": self.shema(),
         }
 
-    def confirm_msg(self, **kwargs):
-        return f"Confirm run of `{self.name}` with arguments: {kwargs}"
-
     async def run(self, **kwargs) -> str:
         raise NotImplementedError()
 
@@ -55,15 +53,15 @@ class Tool:
         schema = FArgs.model_json_schema()
 
         class CustomTool(cls):
-            name = func.__name__
-            description = func.__doc__
-            parameters = schema["properties"]
-            required = schema["required"]
-
             async def run(self, **kwargs):
                 return str(func(**kwargs))
 
-        return CustomTool()
+        return CustomTool(
+            name=func.__name__,
+            description=func.__doc__,
+            parameters=schema["properties"],
+            required=schema["required"],
+        )
 
 
 def create_model_from_function(func) -> type[BaseModel]:

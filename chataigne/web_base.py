@@ -2,9 +2,11 @@ import asyncio
 from enum import StrEnum
 import json
 from typing import Callable
-import streamlit as st
-from .horizontal_layout import st_horizontal
 
+import streamlit as st
+
+
+from .horizontal_layout import st_horizontal
 from .messages import (
     MessageHistory,
     TextMessage,
@@ -37,14 +39,15 @@ class ChatBackend:
             self.tools[tool.name] = tool
         return tool_function
 
+    def enabled_tools(self) -> list[Tool]:
+        return [tool for tool in self.tools.values() if tool.enabled]
+
     def add_user_input(self, text: str):
         new_part = TextMessage(text=text, is_user=True)
         self.messages.append(new_part)
 
     async def generate_answer(self):
-        new_parts = await self.model(
-            "Be straightforward.", self.messages, list(self.tools.values())
-        )
+        new_parts = await self.model("Be straightforward.", self.messages, self.enabled_tools())
         self.messages.extend(new_parts)
 
     def actions_for(self, part_index: int) -> list[Actions | str]:
@@ -129,33 +132,44 @@ class WebChat(ChatBackend):
         for message in self.messages:
             message.__class__ = next(c for c in classes if c.__name__ == message.__class__.__name__)
 
+    def show_sidebar(self):
+        with st.sidebar:
+            st.header("Activated tools")
+            for name, tool in sorted(self.tools.items()):
+                tool.enabled = st.toggle(name, True)
+
+            st.header("Options")
+            st.button("Clear chat", on_click=lambda: st.session_state.pop("messages"))
+
+            if not st.checkbox("Show debug options"):
+                return
+
+            with st.expander("Tools"):
+                for tool in self.tools.values():
+                    st.write(f"### {tool.name}")
+                    st.write(tool.description)
+                    st.write(f"Parameters: {tool.parameters}")
+                    st.write(f"Required: {tool.required}")
+                    st.code(json.dumps(tool.to_openai(), indent=2), language="json")
+
+            with st.expander("Message history as JSON"):
+                st.code(json.dumps(self.messages.to_openai(), indent=2), language="json")
+
     async def main(self):
+        st.title("Chataigne 🌰")
+        self.show_sidebar()
 
-        st.title("Diego's AI Chat")
-        st.button("Clear chat", on_click=lambda: st.session_state.pop("messages"))
-
-        with st.expander("Tools"):
-            for tool in self.tools.values():
-                st.write(f"### {tool.name}")
-                st.write(tool.description)
-                st.write(f"Parameters: {tool.parameters}")
-                st.write(f"Required: {tool.required}")
-                st.code(json.dumps(tool.to_openai(), indent=2), language="json")
-
-        with st.expander("Message history as JSON"):
-            st.code(json.dumps(self.messages.to_openai(), indent=2), language="json")
-
-        st.markdown(
-            """
-            <style>
-                [data-testid=stChatMessage] {
-                    padding: 0.5rem;
-                    margin: -0.5rem 0;
-                }
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
+        # st.markdown(
+        #     """
+        #     <style>
+        #         [data-testid=stChatMessage] {
+        #             padding: 0.5rem;
+        #             margin: -0.5rem 0;
+        #         }
+        #     </style>
+        #     """,
+        #     unsafe_allow_html=True,
+        # )
 
         for i, message in enumerate(self.messages):
 
