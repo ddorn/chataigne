@@ -9,15 +9,18 @@ from pydantic import BaseModel, create_model
 class Tool(BaseModel):
     name: str
     description: str
-    parameters: dict[str, Any]
-    required: list[str]
+    pydantic_model: type[BaseModel]
     enabled: bool = True
 
     def shema(self) -> dict[str, Any]:
+        schema = self.pydantic_model.model_json_schema()
+        parameters = (schema["properties"],)
+        required = (schema["required"],)
+
         return {
             "type": "object",
-            "properties": self.parameters,
-            "required": self.required,
+            "properties": parameters,
+            "required": required,
         }
 
     def to_openai(self) -> ChatCompletionToolParam:
@@ -50,8 +53,6 @@ class Tool(BaseModel):
             func.__doc__ is not None
         ), f"Function '{func.__name__}' must have a docstring explaining how to use it (for the LLM)"
 
-        schema = FArgs.model_json_schema()
-
         class CustomTool(cls):
             def run(self, **kwargs):
                 return str(func(**kwargs))
@@ -59,8 +60,7 @@ class Tool(BaseModel):
         return CustomTool(
             name=func.__name__,
             description=func.__doc__,
-            parameters=schema["properties"],
-            required=schema["required"],
+            pydantic_model=FArgs,
         )
 
 

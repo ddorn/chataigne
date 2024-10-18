@@ -108,7 +108,7 @@ class AnthropicLLM(LLM):
 
 class EchoLLM(LLM):
     def __init__(self):
-        super().__init__("Z Echo", "echo")
+        super().__init__("A Echo", "echo")
 
     def __call__(
         self, system: str, messages: MessageHistory, tools: list[Tool]
@@ -116,7 +116,22 @@ class EchoLLM(LLM):
         last_message = messages[-1]
         time.sleep(1)
         if isinstance(last_message, TextMessage):
-            return [TextMessage(text=last_message.text, is_user=False)]
+            return [
+                TextMessage(text=last_message.text, is_user=False),
+                # ToolRequestMessage(name="add", parameters={"x": 12, "y": 18}, id=str(time.time()))
+                ToolRequestMessage(
+                    name="example",
+                    parameters=dict(
+                        x=3,
+                        y=4.0,
+                        z=False,
+                        w=[1, 2, 3],
+                        a={"b": "c", "d": 5},
+                        b=None,
+                    ),
+                    id=str(time.time()),
+                ),
+            ]
         else:
             return [TextMessage(text=str(last_message), is_user=False)]
 

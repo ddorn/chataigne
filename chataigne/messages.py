@@ -189,6 +189,12 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
     def pop(self, index: int):
         return self.root.pop(index)
 
+    def index(self, value: AnyMessagePart):
+        return self.root.index(value)
+
+    def insert(self, index: int, value: AnyMessagePart):
+        self.root.insert(index, value)
+
     def to_openai(self) -> list[ChatCompletionMessageParam]:
         formated = []
         # For openai, we need to merge:

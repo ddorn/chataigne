@@ -3,9 +3,9 @@ import json
 from pathlib import Path
 from typing import Callable
 
+import pydantic
 import streamlit as st
 from streamlit_pills import pills as st_pills
-
 
 from .horizontal_layout import st_horizontal
 from .messages import (
@@ -16,7 +16,7 @@ from .messages import (
     ToolRequestMessage,
     ToolOutputMessage,
 )
-from .llms import EchoLLM, OpenAILLM, LLM, AnthropicLLM
+from .llms import OpenAILLM, LLM, AnthropicLLM, EchoLLM
 from .tool import Tool
 
 CSS_FILE = Path(__file__).parent / "styles.css"
@@ -60,8 +60,11 @@ class ChatBackend:
     def actions_for(self, part_index: int) -> list[Actions | str]:
         part = self.messages[part_index]
 
-        if isinstance(part, ToolRequestMessage) and self.needs_processing(part_index):
-            return [Actions.ALLOW_AND_RUN, Actions.DENY, Actions.DELETE, Actions.EDIT]
+        if isinstance(part, ToolRequestMessage):
+            if self.needs_processing(part_index):
+                return [Actions.ALLOW_AND_RUN, Actions.DENY, Actions.DELETE, Actions.EDIT]
+            else:
+                return [Actions.DELETE, Actions.EDIT]
         if isinstance(part, TextMessage):
             return [Actions.DELETE, Actions.EDIT]
         else:
@@ -96,7 +99,13 @@ class ChatBackend:
             tool = self.tools[part.name]
 
             out = tool.run(**part.parameters)
-            self.messages.append(ToolOutputMessage(id=part.id, name=tool.name, content=out))
+
+            # Check there's not already an output for this request
+            assert part.id not in self.tool_output_ids()
+            index = self.messages.index(part)
+            self.messages.insert(
+                index + 1, ToolOutputMessage(id=part.id, name=tool.name, content=out)
+            )
 
         elif action == Actions.DENY:
             assert isinstance(part, ToolRequestMessage)
@@ -109,7 +118,14 @@ class ChatBackend:
 
         elif action == Actions.DELETE:
             self.messages.pop(index)
-        
+
+            # Delete tool output at the same time as the request
+            if isinstance(part, ToolRequestMessage):
+                for i, m in enumerate(self.messages):
+                    if isinstance(m, ToolOutputMessage) and m.id == part.id:
+                        self.messages.pop(i)
+                        break
+
         else:
             raise NotImplementedError(action)
 
@@ -223,19 +239,46 @@ class WebChat(ChatBackend):
     def call_action(self, action: Actions | str, index: int):
         if action == Actions.EDIT:
             message_to_be_edited = self.messages[index]
-            assert isinstance(message_to_be_edited, TextMessage)
-            @st.dialog("Edit Message")
-            def edit_msg():
-                with st.form(key="edit_message", border=False):
-                    edited_message = st.text_area("edit_message", value=message_to_be_edited.text, label_visibility="collapsed")
-                    with st_horizontal():
-                        if st.form_submit_button("Save changes"):
-                            self.messages[index].text = edited_message
-                            st.rerun()
-            edit_msg()
+            if isinstance(message_to_be_edited, TextMessage):
+
+                @st.dialog("Edit Message")
+                def edit_msg():
+                    with st.form(key="edit_message", border=False):
+                        edited_message = st.text_area(
+                            "edit_message",
+                            value=message_to_be_edited.text,
+                            label_visibility="collapsed",
+                        )
+                        with st_horizontal():
+                            if st.form_submit_button("Save changes"):
+                                self.messages[index].text = edited_message
+                                st.rerun()
+
+                edit_msg()
+            if isinstance(message_to_be_edited, ToolRequestMessage):
+                tool = self.tools[message_to_be_edited.name]
+
+                # can assume ai got the types right
+                @st.dialog("Edit Message")
+                def edit_msg():
+                    with st.form(key="edit_message", border=False):
+                        parameters = tool.pydantic_model.model_fields
+                        new_parameters = {}
+                        for key, expected_type in parameters.items():
+                            value = self.edit_one_parameter(
+                                key, expected_type, message_to_be_edited.parameters[key]
+                            )
+                            new_parameters[key] = value
+
+                        with st_horizontal():
+                            if st.form_submit_button("Save changes"):
+                                self.messages[index].parameters = new_parameters
+                                st.rerun()
+
+                edit_msg()
         else:
             return super().call_action(action, index)
-    
+
     def show_message(self, index: int):
         message = self.messages[index]
         # We put tool outputs next to its tool.
@@ -275,6 +318,20 @@ class WebChat(ChatBackend):
                         on_click=self.call_action,
                         args=(action, index),
                     )
+
+    def edit_one_parameter(self, key: str, expected_type: pydantic.fields.FieldInfo, value):
+
+        if expected_type.annotation is str:
+            value = st.text_input(label=key, value=value, key=key)
+        elif expected_type.annotation is bool:
+            value = st.checkbox(label=key, value=value, key=key)
+        elif expected_type.annotation in (int, float):
+            value = st.number_input(label=key, value=value, key=key)
+        else:
+            input_value = st.text_area(label=key, value=json.dumps(value, indent=2), key=key)
+            # Todo: add error handling
+            value = pydantic.TypeAdapter(expected_type.annotation).validate_json(input_value)
+        return value
 
     def inject_css(self):
         st.markdown(f"<style>{CSS_FILE.read_text()}</style>", unsafe_allow_html=True)
