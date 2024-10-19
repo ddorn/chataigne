@@ -264,14 +264,19 @@ class WebChat(ChatBackend):
                     with st.form(key="edit_message", border=False):
                         parameters = tool.pydantic_model.model_fields
                         new_parameters = {}
+                        can_submit = True
                         for key, expected_type in parameters.items():
-                            value = self.edit_one_parameter(
-                                key, expected_type, message_to_be_edited.parameters[key]
-                            )
-                            new_parameters[key] = value
-
+                            try:
+                                value = self.edit_one_parameter(
+                                    key, expected_type, message_to_be_edited.parameters[key]
+                                )
+                            except Exception as e:
+                                st.error(e)
+                                can_submit = False
+                            else:
+                                new_parameters[key] = value
                         with st_horizontal():
-                            if st.form_submit_button("Save changes"):
+                            if st.form_submit_button("Save changes") and can_submit:
                                 self.messages[index].parameters = new_parameters
                                 st.rerun()
 
@@ -329,7 +334,6 @@ class WebChat(ChatBackend):
             value = st.number_input(label=key, value=value, key=key)
         else:
             input_value = st.text_area(label=key, value=json.dumps(value, indent=2), key=key)
-            # Todo: add error handling
             value = pydantic.TypeAdapter(expected_type.annotation).validate_json(input_value)
         return value
 
