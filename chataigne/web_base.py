@@ -27,6 +27,7 @@ class Actions(StrEnum):
     DENY = "❌ Deny"
     EDIT = "✏️"
     DELETE = "🗑️"
+    HIDE = "👁️"
 
 
 class ChatBackend:
@@ -62,13 +63,19 @@ class ChatBackend:
 
         if isinstance(part, ToolRequestMessage):
             if self.needs_processing(part_index):
-                return [Actions.ALLOW_AND_RUN, Actions.DENY, Actions.DELETE, Actions.EDIT]
+                return [
+                    Actions.ALLOW_AND_RUN,
+                    Actions.DENY,
+                    Actions.DELETE,
+                    Actions.EDIT,
+                    Actions.HIDE,
+                ]
             else:
-                return [Actions.DELETE, Actions.EDIT]
+                return [Actions.DELETE, Actions.EDIT, Actions.HIDE]
         if isinstance(part, TextMessage):
-            return [Actions.DELETE, Actions.EDIT]
+            return [Actions.DELETE, Actions.EDIT, Actions.HIDE]
         else:
-            return [Actions.DELETE]
+            return [Actions.DELETE, Actions.HIDE]
 
     def needs_processing(self, index: int) -> bool:
         part = self.messages[index]
@@ -125,6 +132,9 @@ class ChatBackend:
                     if isinstance(m, ToolOutputMessage) and m.id == part.id:
                         self.messages.pop(i)
                         break
+
+        elif action == Actions.HIDE:
+            self.messages.toggle_hide(index)
 
         else:
             raise NotImplementedError(action)
@@ -298,7 +308,11 @@ class WebChat(ChatBackend):
         container = st.chat_message(name=role)
         with container:
             if isinstance(message, TextMessage):
-                st.write(message.text)
+                if message.hidden:
+                    st.write("🙈 this message is hidden")
+                    st.write(f":grey[{message.text}]")
+                else:
+                    st.write(message.text)
             elif isinstance(message, ImageMessage):
                 st.warning("Image messages are not supported yet.")
             elif isinstance(message, ToolRequestMessage):
@@ -306,7 +320,11 @@ class WebChat(ChatBackend):
                 s = f"Request to use **{message.name}**\n"
                 for key, value in message.parameters.items():
                     s += f"{key}: {self.to_inline_or_code_block(value)}\n"
-                st.write(s)
+                if message.hidden:
+                    st.write("🙈 this message is hidden")
+                    st.write(f":grey[{s}]")
+                else:
+                    st.write(s)
             else:
                 st.warning(f"Unsupported message type: {type(message)}")
 
