@@ -21,6 +21,7 @@ __all__ = [
 
 class MessagePart(BaseModel, ABC):
     type: Any
+    hidden: bool = False
 
     @abstractmethod
     def to_openai(self):
@@ -189,6 +190,12 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
     def pop(self, index: int):
         return self.root.pop(index)
 
+    def toggle_hide(self, index: int):
+        self.root[index].hidden = not self.root[index].hidden
+
+    def get_unhidden_messages(self):
+        return [message for message in self.root if not message.hidden]
+
     def index(self, value: AnyMessagePart):
         return self.root.index(value)
 
@@ -200,17 +207,17 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
         # For openai, we need to merge:
         # - an optional assistant TextMessage and the consecutive ToolRequestMessages into a single one
         # - a user TextMessage and subsequent ImageMessages from the same user into a single one
-
+        messages_to_send = self.get_unhidden_messages()
         i = 0
-        while i < len(self):
-            message = self[i]
+        while i < len(messages_to_send):
+            message = messages_to_send[i]
 
             # Merge consecutive user text message and Image messages
             if isinstance(message, TextMessage) and message.is_user:
                 new = message.to_openai()
                 i += 1
                 for attached_image in itertools.takewhile(
-                    lambda x: isinstance(x, ImageMessage), self[i:]
+                    lambda x: isinstance(x, ImageMessage), messages_to_send[i:]
                 ):
                     new = merge(new, attached_image.to_openai())
                     i += 1
@@ -220,7 +227,7 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
                 new = message.to_openai()
                 i += 1
                 for tool_request in itertools.takewhile(
-                    lambda x: isinstance(x, ToolRequestMessage), self[i:]
+                    lambda x: isinstance(x, ToolRequestMessage), messages_to_send[i:]
                 ):
                     new = merge(new, tool_request.to_openai())
                     i += 1
@@ -236,6 +243,7 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
 
     def to_anthropic(self) -> list[MessageParam]:
         formated = []
+        messages_to_send = self.get_unhidden_messages()
 
         # For anthropic, we need to merge:
         # - all user messages (text and image) and tool outputs into a single message
@@ -249,19 +257,21 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
             )
 
         i = 0
-        while i < len(self):
-            message = self[i]
+        while i < len(messages_to_send):
+            message = messages_to_send[i]
 
             new = message.to_anthropic()
             # Merge consecutive user text/image message and tool outputs
             if is_user_message(message):
                 i += 1
-                for part in itertools.takewhile(is_user_message, self[i:]):
+                for part in itertools.takewhile(is_user_message, messages_to_send[i:]):
                     new = merge(new, part.to_anthropic())
                     i += 1
             else:
                 i += 1
-                for part in itertools.takewhile(lambda x: not is_user_message(x), self[i:]):
+                for part in itertools.takewhile(
+                    lambda x: not is_user_message(x), messages_to_send[i:]
+                ):
                     new = merge(new, part.to_anthropic())
                     i += 1
 
