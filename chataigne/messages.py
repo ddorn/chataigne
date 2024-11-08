@@ -252,15 +252,14 @@ class MessageHistory(RootModel[list[AnyMessagePart]]):
         while i < len(self):
             message = self[i]
 
+            new = message.to_anthropic()
             # Merge consecutive user text/image message and tool outputs
             if is_user_message(message):
-                new = message.to_anthropic()
                 i += 1
                 for part in itertools.takewhile(is_user_message, self[i:]):
                     new = merge(new, part.to_anthropic())
                     i += 1
             else:
-                new = message.to_anthropic()
                 i += 1
                 for part in itertools.takewhile(lambda x: not is_user_message(x), self[i:]):
                     new = merge(new, part.to_anthropic())

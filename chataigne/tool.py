@@ -14,8 +14,8 @@ class Tool(BaseModel):
 
     def shema(self) -> dict[str, Any]:
         schema = self.pydantic_model.model_json_schema()
-        parameters = (schema["properties"],)
-        required = (schema["required"],)
+        parameters = schema["properties"]
+        required = schema["required"]
 
         return {
             "type": "object",
@@ -24,7 +24,6 @@ class Tool(BaseModel):
         }
 
     def to_openai(self) -> ChatCompletionToolParam:
-        # def as_json(self, for_anthropic: bool = False) -> dict:
         data = {
             "type": "function",
             "function": {
