@@ -1,4 +1,5 @@
 import pytest
+
 from chataigne.messages import merge
 
 

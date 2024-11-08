@@ -1,4 +1,5 @@
 import os
+
 import requests
 
 BASE = "https://serv.amazingmarvin.com/api/"

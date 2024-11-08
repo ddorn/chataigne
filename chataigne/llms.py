@@ -1,13 +1,12 @@
 import json
 import time
+
 import anthropic
 import openai
-from openai.types.chat import (
-    ChatCompletionSystemMessageParam,
-)
+from openai.types.chat import ChatCompletionSystemMessageParam
 
+from .messages import AnyMessagePart, MessageHistory, TextMessage, ToolRequestMessage
 from .tool import Tool
-from .messages import MessageHistory, TextMessage, ToolRequestMessage, AnyMessagePart
 
 
 class LLM:

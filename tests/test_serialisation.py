@@ -1,10 +1,11 @@
 import pytest
+
 from chataigne.messages import (
-    TextMessage,
     ImageMessage,
-    ToolRequestMessage,
-    MessagePart,
     MessageHistory,
+    MessagePart,
+    TextMessage,
+    ToolRequestMessage,
 )
 
 

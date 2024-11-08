@@ -1,5 +1,5 @@
-from enum import StrEnum
 import json
+from enum import StrEnum
 from pathlib import Path
 from typing import Callable
 
@@ -8,15 +8,15 @@ import streamlit as st
 from streamlit_pills import pills as st_pills
 
 from .horizontal_layout import st_horizontal
+from .llms import LLM, AnthropicLLM, EchoLLM, OpenAILLM
 from .messages import (
     AnyMessagePart,
+    ImageMessage,
     MessageHistory,
     TextMessage,
-    ImageMessage,
-    ToolRequestMessage,
     ToolOutputMessage,
+    ToolRequestMessage,
 )
-from .llms import OpenAILLM, LLM, AnthropicLLM, EchoLLM
 from .tool import Tool
 
 CSS_FILE = Path(__file__).parent / "styles.css"

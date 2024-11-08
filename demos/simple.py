@@ -1,8 +1,7 @@
 import ast
 
-from chataigne.web_base import WebChat
 from chataigne.tools.amazing_marvin import add_marvin_task
-
+from chataigne.web_base import WebChat
 
 app = WebChat()
 

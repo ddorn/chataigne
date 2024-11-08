@@ -1,14 +1,14 @@
 import base64
-from io import BytesIO
-import json
-from typing import Annotated, Any, Literal
-import PIL.Image
-from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from anthropic.types import MessageParam
 import itertools
-from pydantic import BaseModel, Field, RootModel
+import json
 from abc import ABC, abstractmethod
+from io import BytesIO
+from typing import Annotated, Any, Literal
 
+import PIL.Image
+from anthropic.types import MessageParam
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from pydantic import BaseModel, Field, RootModel
 
 __all__ = [
     "TextMessage",

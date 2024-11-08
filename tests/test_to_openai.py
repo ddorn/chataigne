@@ -1,12 +1,13 @@
+import openai
 import pytest
+
 from chataigne.messages import (
+    ImageMessage,
     MessageHistory,
     TextMessage,
-    ImageMessage,
-    ToolRequestMessage,
     ToolOutputMessage,
+    ToolRequestMessage,
 )
-import openai
 
 # Simple white 4x4 image, in base64 from PNG
 image = "iVBORw0KGgoAAAANSUhEUgAAAA8AAAAMAQMAAACHjHWnAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGUExURScoIv///0T6qSMAAAABYktHRAH/Ai3eAAAAB3RJTUUH6AkSEBcOP97EywAAAAtJREFUCNdjYCAMAAAkAAEuHnGgAAAAJXRFWHRkYXRlOmNyZWF0ZQAyMDI0LTA5LTE4VDE2OjIzOjE0KzAwOjAwzJ8kxwAAACV0RVh0ZGF0ZTptb2RpZnkAMjAyNC0wOS0xOFQxNjoyMzoxNCswMDowML3CnHsAAAAodEVYdGRhdGU6dGltZXN0YW1wADIwMjQtMDktMThUMTY6MjM6MTQrMDA6MDDq172kAAAAAElFTkSuQmCC"

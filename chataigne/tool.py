@@ -1,8 +1,8 @@
 from inspect import Parameter, signature
 from typing import Any, Callable
-from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
-from anthropic.types import ToolParam
 
+from anthropic.types import ToolParam
+from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
 from pydantic import BaseModel, create_model
 
 
