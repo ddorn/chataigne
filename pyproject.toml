@@ -25,3 +25,9 @@ pythonpath = ["."]
 [tool.pyright]
 include = ["chataigne", "demos", "tests"]
 # strict = ["chataigne", "demos", "tests"]
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 100
